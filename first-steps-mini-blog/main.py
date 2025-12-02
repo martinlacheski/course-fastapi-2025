@@ -1,15 +1,58 @@
-from typing import Union
+from typing import Literal
+from fastapi import FastAPI, HTTPException, Query, Path
 from pydantic.functional_validators import field_validator
-from fastapi import FastAPI, HTTPException, Query
+from typing import Union
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 
 app = FastAPI(tittle="Mini Blog")
 
 BLOG_POSTS = [
-    {"id": 1, "title": "Primer Post", "content": "Post sobre Python"},
-    {"id": 2, "title": "Segundo Post", "content": "Post sobre FastAPI"},
-    {"id": 3, "title": "Tercer Post", "content": "Post sobre FastAPI vs Django"},
+    {"id": 1, "title": "Hola desde FastAPI",
+        "content": "Mi primer post con FastAPI"},
+    {"id": 2, "title": "Mi segundo Post con FastAPI",
+        "content": "Mi segundo post con FastAPI blablabla"},
+    {"id": 3, "title": "Django vs FastAPI",
+        "content": "FastAPI es más rápido por x razones",
+        "tags": [
+            {"name": "Python"},
+            {"name": "fastapi"},
+            {"name": "Django"}
+        ]},
+    {"id": 4, "title": "Hola desde FastAPI",
+        "content": "Mi primer post con FastAPI"},
+    {"id": 5, "title": "Mi segundo Post con FastAPI",
+        "content": "Mi segundo post con FastAPI blablabla"},
+    {"id": 6, "title": "Django vs FastAPI",
+        "content": "FastAPI es más rápido por x razones"},
+    {"id": 7, "title": "Hola desde FastAPI",
+        "content": "Mi primer post con FastAPI"},
+    {"id": 8, "title": "Mi segundo Post con FastAPI",
+        "content": "Mi segundo post con FastAPI blablabla"},
+    {"id": 9, "title": "Django vs FastAPI",
+        "content": "FastAPI es más rápido por x razones"},
+    {"id": 10, "title": "Hola desde FastAPI",
+        "content": "Mi primer post con FastAPI"},
+    {"id": 11, "title": "Mi segundo Post con FastAPI",
+        "content": "Mi segundo post con FastAPI blablabla"},
+    {"id": 12, "title": "Django vs FastAPI",
+        "content": "FastAPI es más rápido por x razones",
+        "tags": [
+            {"name": "Python"},
+            {"name": "fastapi"},
+            {"name": "Django"}
+        ]},
+    {"id": 13, "title": "Hola desde FastAPI",
+        "content": "Mi primer post con FastAPI"},
+    {"id": 14, "title": "Mi segundo Post con FastAPI",
+        "content": "Mi segundo post con FastAPI blablabla"},
+    {"id": 15, "title": "Django vs FastAPI",
+        "content": "FastAPI es más rápido por x razones",
+        "tags": [
+            {"name": "Python"},
+            {"name": "fastapi"},
+            {"name": "Django"}
+        ]},
 ]
 
 ################ Se crean las clases para manejar los POSTS ################
@@ -22,7 +65,7 @@ class Tag(BaseModel):
 
 class Author(BaseModel):
     name: str
-    email: EmailStr  # EmailStr valida que sea un email valido
+    email: EmailStr  # EmailStr comprueba que sea un email valido
 
 
 class PostBase(BaseModel):
@@ -89,6 +132,19 @@ class PostSummary(BaseModel):
     title: str
 
 
+class PaginatedPost(BaseModel):
+    page: int
+    per_page: int
+    total: int
+    total_pages: int
+    has_prev: bool
+    has_next: bool
+    order_by: Literal["id", "title"]
+    direction: Literal["asc", "desc"]
+    search: Optional[str] = None
+    items: List[PostPublic]
+
+
 ################# Endpoints #################
 
 # Endpoint inicial
@@ -99,11 +155,46 @@ async def home():
 
 # Endpoint para obtener posts con búsqueda opcional (Devuelve una lista del modelo PostPublic)
 @app.get("/posts", response_model=List[PostPublic])
-async def get_posts(query: str | None = Query(default=None, description="Buscar en los posts")):  # Query parameter
+async def get_posts(
+    # Búsqueda por titulo
+    query: Optional[str] = Query(
+        default=None,
+        description="Buscar en los títulos de los posts",
+        alias="search",  # Alias para que el nombre del parámetro sea "search" en la documentación
+        min_length=3,  # Minimo 3 caracteres
+        max_length=50,  # Maximo 50 caracteres
+        pattern=r"^[\w\sáéíóúÁÉÍÓÚüÜ-]+$"  # Solo letras, numeros y espacios
+    ),
 
+    ################# Paginación #################
+
+    # Cantidad de resultados por página
+    per_page: int = Query(
+        10, ge=1, le=50,
+        description="Cantidad de resultados por página (1-50)"
+    ),
+
+    # Número de página
+    page: int = Query(
+        1, ge=1,
+        description="Número de página (>=1)"
+    ),
+
+    # Ordenación
+    order_by: Literal["id", "title"] = Query(
+        "id", description="Ordenar por id o title"
+    ),
+
+    # Dirección de orden
+    direction: Literal["asc", "desc"] = Query(
+        "asc", description="Dirección de orden (asc o desc)"
+    )
+):
+
+    # Se retorna la lista de posts filtrada por la búsqueda
     if query:
         # Se retornan los posts que coinciden con la búsqueda en QUERY
-        return [post for post in BLOG_POST if query.lower() in post["title"].lower()]
+        return [post for post in BLOG_POSTS if query.lower() in post["title"].lower()]
 
     # Se retornan todos los posts si no hay QUERY
     return BLOG_POSTS
@@ -111,7 +202,15 @@ async def get_posts(query: str | None = Query(default=None, description="Buscar 
 
 # Endpoint para obtener un post por su ID con Path Parameter
 @app.get("/posts/{post_id}", response_model=Union[PostPublic, PostSummary], response_description={"Post encontrado"})
-async def get_post(post_id: int, include_content: bool = Query(default=True, description="Incluir contenido del post")):  # Query parameter
+async def get_post(post_id: int = Path(
+    # Path parameter para controlar el valor del ID del Post
+    ...,
+    ge=1,
+    title="ID del post",
+    description="Identificador entero del post. Debe ser mayor a 1",
+    example=1
+    # Query parameter
+), include_content: bool = Query(default=True, description="Incluir contenido del post")):
 
     # Union[PostPublic, PostSummary].
     # Intenta encontrar el post en PostPublic, si no lo encuentra, intenta encontrarlo en PostSummary
