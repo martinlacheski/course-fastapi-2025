@@ -1,59 +1,121 @@
-from typing import Literal
-from fastapi import FastAPI, HTTPException, Query, Path
-from pydantic.functional_validators import field_validator
-from typing import Union
-from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
+from math import ceil
+from sqlalchemy.orm.session import Session
+import os
 
-app = FastAPI(tittle="Mini Blog")
+from datetime import datetime
 
-BLOG_POSTS = [
-    {"id": 1, "title": "Hola desde FastAPI",
-        "content": "Mi primer post con FastAPI"},
-    {"id": 2, "title": "Mi segundo Post con FastAPI",
-        "content": "Mi segundo post con FastAPI blablabla"},
-    {"id": 3, "title": "Django vs FastAPI",
-        "content": "FastAPI es más rápido por x razones",
-        "tags": [
-            {"name": "Python"},
-            {"name": "fastapi"},
-            {"name": "Django"}
-        ]},
-    {"id": 4, "title": "Hola desde FastAPI",
-        "content": "Mi primer post con FastAPI"},
-    {"id": 5, "title": "Mi segundo Post con FastAPI",
-        "content": "Mi segundo post con FastAPI blablabla"},
-    {"id": 6, "title": "Django vs FastAPI",
-        "content": "FastAPI es más rápido por x razones"},
-    {"id": 7, "title": "Hola desde FastAPI",
-        "content": "Mi primer post con FastAPI"},
-    {"id": 8, "title": "Mi segundo Post con FastAPI",
-        "content": "Mi segundo post con FastAPI blablabla"},
-    {"id": 9, "title": "Django vs FastAPI",
-        "content": "FastAPI es más rápido por x razones"},
-    {"id": 10, "title": "Hola desde FastAPI",
-        "content": "Mi primer post con FastAPI"},
-    {"id": 11, "title": "Mi segundo Post con FastAPI",
-        "content": "Mi segundo post con FastAPI blablabla"},
-    {"id": 12, "title": "Django vs FastAPI",
-        "content": "FastAPI es más rápido por x razones",
-        "tags": [
-            {"name": "Python"},
-            {"name": "fastapi"},
-            {"name": "Django"}
-        ]},
-    {"id": 13, "title": "Hola desde FastAPI",
-        "content": "Mi primer post con FastAPI"},
-    {"id": 14, "title": "Mi segundo Post con FastAPI",
-        "content": "Mi segundo post con FastAPI blablabla"},
-    {"id": 15, "title": "Django vs FastAPI",
-        "content": "FastAPI es más rápido por x razones",
-        "tags": [
-            {"name": "Python"},
-            {"name": "fastapi"},
-            {"name": "Django"}
-        ]},
-]
+from fastapi import FastAPI, HTTPException, Query, Path, status, Depends
+from typing import Union, Literal, List, Optional
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
+
+from sqlalchemy import create_engine, Integer, String, Text, DateTime, select, func, UniqueConstraint, ForeignKey, Table, Column
+from sqlalchemy.orm import sessionmaker, Session, DeclarativeBase, Mapped, mapped_column, relationship, selectinload, joinedload
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+
+# Configuración de la base de datos
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./blog.db")
+print("conectado a", DATABASE_URL)
+
+# Se crea el engine de la base de datos
+engine_kwargs = {}
+
+# Si la base de datos es sqlite, se agrega el parametro check_same_thread
+if DATABASE_URL.startswith("sqlite"):
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+# se asocia el engine con la base de datos
+engine = create_engine(DATABASE_URL, **engine_kwargs)
+
+# Se configuracion de la sesión de la base de datos
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+# Se crea la clase base para la base de datos
+class Base(DeclarativeBase):
+    pass
+
+
+# Se crea la clase AuthorORM para manejar los autores en la base de datos
+class AuthorORM(Base):
+    __tablename__ = "authors"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), index=True)
+    email: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now())
+    # Se crea la relacion con el post (lado Uno)
+    posts: Mapped[List["PostORM"]] = relationship(back_populates="author")
+
+
+# Se crea la tabla INTERMEDIA de la relacion muchos a muchos
+post_tags = Table(
+    "post_tags",  # nombre de la tabla
+    Base.metadata,  # metadata de la base de datos
+    Column("post_id", ForeignKey("posts.id"),
+           primary_key=True),  # clave foranea de la tabla posts
+    Column("tag_id", ForeignKey("tags.id"),
+           primary_key=True),  # clave foranea de la tabla tags
+)
+
+
+# Se crea la clase TagORM para manejar los tags en la base de datos
+class TagORM(Base):
+    __tablename__ = "tags"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now())
+
+    # Se crea la relacion con el post (lado Uno)
+    posts: Mapped[List["PostORM"]] = relationship(
+        secondary=post_tags,
+        back_populates="tags",
+        lazy="selectin"
+    )
+
+
+# Se crea la clase PostORM para manejar los posts en la base de datos
+class PostORM(Base):
+    __tablename__ = "posts"
+    __table_args__ = (UniqueConstraint("title", name="unique_post_title"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(100), index=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now())
+
+    # Se crea la relacion con el post (lado Muchos)
+    author_id: Mapped[Optional[int]] = mapped_column(ForeignKey("authors.id"))
+    author: Mapped[Optional["AuthorORM"]] = relationship(
+        back_populates="posts")
+
+    # Se crea la relacion con el post (lado Muchos)
+    tags: Mapped[List["TagORM"]] = relationship(
+        secondary=post_tags,
+        back_populates="posts",
+        lazy="selectin",
+        passive_deletes=True
+    )
+
+
+# Entorno de Desarrollo (Producción se ocupan migraciones)
+Base.metadata.create_all(bind=engine)
+
+
+# Conexión con la base de datos
+def get_db():
+    db = SessionLocal()  # Se crea la sesión de la base de datos
+    try:
+        yield db  # Se retorna la sesión de la base de datos
+    finally:
+        db.close()  # Se cierra la sesión de la base de datos
+
+
+app = FastAPI(title="Mini Blog")
+
 
 ################ Se crean las clases para manejar los POSTS ################
 
@@ -96,15 +158,6 @@ class PostCreate(BaseModel):
 
     author: Author = Field(..., description="Autor del post")
 
-    # Validador para que el titulo sea único
-    @field_validator("title")
-    @classmethod  # Indica que es un método de clase
-    def title_must_be_unique(cls, value):
-        if value in [post["title"] for post in BLOG_POSTS]:
-            raise ValueError(
-                "El titulo debe ser único, ya existe en los Posts")
-        return value
-
 
 class PostUpdate(BaseModel):
     title: str = Field(
@@ -126,12 +179,17 @@ class PostUpdate(BaseModel):
 class PostPublic(PostBase):
     id: int  # Se agrega el ID para que sea único
 
+    # Se configura el modelo de Pydantic para que se pueda convertir a JSON
+    model_config = ConfigDict(from_attributes=True)
 
+
+# Se crea la clase PostSummary para manejar los posts resumidos
 class PostSummary(BaseModel):
     id: int
     title: str
 
 
+# Se crea la clase PaginatedPost para manejar los posts paginados
 class PaginatedPost(BaseModel):
     page: int
     per_page: int
@@ -154,8 +212,14 @@ async def home():
 
 
 # Endpoint para obtener posts con búsqueda opcional (Devuelve una lista del modelo PostPublic)
-@app.get("/posts", response_model=List[PostPublic])
+@app.get("/posts", response_model=PaginatedPost)
 async def get_posts(
+    # Ejemplo de como advertir que un parámetro esta obsoleto
+    text: Optional[str] = Query(
+        default=None,
+        deprecated=True,    # Indica que el parámetro esta obsoleto
+        description="Parámetro obsoleto, usa 'query o search' en su lugar."
+    ),
     # Búsqueda por titulo
     query: Optional[str] = Query(
         default=None,
@@ -188,19 +252,99 @@ async def get_posts(
     # Dirección de orden
     direction: Literal["asc", "desc"] = Query(
         "asc", description="Dirección de orden (asc o desc)"
-    )
+    ),
+
+    # se inyecta la sesión de la base de datos
+    db: Session = Depends(get_db)
 ):
+
+    # Se retorna la lista de posts
+    results = db.query(PostORM).all()
+
+    # Se asigna a una variable la Query o el texto de búsqueda
+    # query = query or text
 
     # Se retorna la lista de posts filtrada por la búsqueda
     if query:
-        # Se retornan los posts que coinciden con la búsqueda en QUERY
-        return [post for post in BLOG_POSTS if query.lower() in post["title"].lower()]
+        results = db.execute(select(PostORM).where(
+            PostORM.title.contains(query)
+        ))
 
-    # Se retornan todos los posts si no hay QUERY
-    return BLOG_POSTS
+    # Obtenemos el total de resultados
+    total = db.query(PostORM).count()
+
+    # Obtenemos el total de páginas
+    total_pages = ceil(total/per_page) if total > 0 else 0
+
+    # Obtenemos la página actual
+    if total_pages == 0:
+        current_page = 1
+    else:
+        current_page = min(page, total_pages)
+
+    # Ordenamos los resultados
+    # con una funcion anonima ordenamos los resultados y aplicamos REVERSE si aplica
+    results = db.query(PostORM).order_by(
+        getattr(PostORM, order_by).desc() if direction == "desc" else getattr(
+            PostORM, order_by).asc()
+    )
+
+    # Obtenemos los resultados de la página actual
+    if total_pages == 0:
+        items: List[PostORM] = []
+    else:
+        start = (current_page - 1) * per_page
+        items = db.execute(results.limit(per_page).offset(
+            start)).scalars().all()  # [10:20]
+
+    # Obtenemos si hay anterior y siguiente
+    has_prev = current_page > 1
+    has_next = current_page < total_pages if total_pages > 0 else False
+
+    # Retornamos la lista de posts paginada
+    return PaginatedPost(
+        page=current_page,
+        per_page=per_page,
+        total=total,
+        total_pages=total_pages,
+        has_prev=has_prev,
+        has_next=has_next,
+        order_by=order_by,
+        direction=direction,
+        search=query,
+        items=items
+    )
 
 
-# Endpoint para obtener un post por su ID con Path Parameter
+@app.get("/posts/by-tags", response_model=List[PostPublic])
+def filter_by_tags(
+    tags: List[str] = Query(
+        ...,
+        min_length=1,
+        description="Una o más etiquetas. Ejemplo: ?tags=python&tags=fastapi"
+    ),
+    db: Session = Depends(get_db)
+):
+    normalized_tag_names = [tag.strip().lower() for tag in tags if tag.strip()]
+
+    if not normalized_tag_names:
+        return []
+
+    post_list = (
+        select(PostORM)
+        .options(
+            selectinload(PostORM.tags),
+            joinedload(PostORM.author),
+        ).where(PostORM.tags.any(func.lower(TagORM.name).in_(normalized_tag_names)))
+        .order_by(PostORM.id.asc())
+    )
+
+    posts = db.execute(post_list).scalars().all()
+
+    return posts
+
+
+# Endpoint para obtener un post por su ID
 @app.get("/posts/{post_id}", response_model=Union[PostPublic, PostSummary], response_description={"Post encontrado"})
 async def get_post(post_id: int = Path(
     # Path parameter para controlar el valor del ID del Post
@@ -210,75 +354,94 @@ async def get_post(post_id: int = Path(
     description="Identificador entero del post. Debe ser mayor a 1",
     example=1
     # Query parameter
-), include_content: bool = Query(default=True, description="Incluir contenido del post")):
+), include_content: bool = Query(default=True, description="Incluir contenido del post"), db: Session = Depends(get_db)):
 
-    # Union[PostPublic, PostSummary].
-    # Intenta encontrar el post en PostPublic, si no lo encuentra, intenta encontrarlo en PostSummary
-    for post in BLOG_POSTS:
-        if post["id"] == post_id:
-            if include_content:
-                return post
-            else:
-                return {"id": post["id"], "title": post["title"]}
+    # Buscamos el post en la base de datos
+    post = db.query(PostORM).filter(PostORM.id == post_id).first()
 
     # Se envia una excepción HTTP si no se encuentra el post
-    raise HTTPException(status_code=404, detail="Post no encontrado")
+    if not post:
+        raise HTTPException(status_code=404, detail="Post no encontrado")
+
+    # Si tiene contenido, retorna el post completo
+    if include_content:
+        return PostPublic.model_validate(post, from_attributes=True)
+    # Si no tiene contenido, retorna el post resumido
+    else:
+        return PostSummary.model_validate(post, from_attributes=True)
 
 
 # Endpoint para crear un nuevo post
-@app.post("/posts", response_model=PostPublic, response_description={"Post creado exitosamente"})
+@app.post("/posts", response_model=PostPublic, response_description={"Post creado exitosamente"}, status_code=status.HTTP_201_CREATED)
 # Se recibe el post como un objeto de la clase PostBase
-async def create_post(post: PostCreate):
-
-    # Se obtiene el numero de ID nuevo desde el maximo ID existente
-    new_id = max(post["id"] for post in BLOG_POSTS) + 1 if BLOG_POSTS else 1
-    new_post = {
-        "id": new_id,
-        "title": post.title,
-        "content": post.content,
-        # Se convierte el tag en un diccionario
-        "tags": [tag.model_dump() for tag in post.tags],
-        # Se convierte el author en un diccionario
-        "author": post.author.model_dump() if post.author else None
-    }
-
-    # Se agrega el nuevo post a la lista
-    BLOG_POSTS.append(new_post)
-
-    # Se retorna el nuevo post creado
-    return new_post
+async def create_post(post: PostCreate, db: Session = Depends(get_db)):
+    new_post = PostORM(
+        title=post.title,
+        content=post.content,
+    )
+    try:
+        db.add(new_post)
+        db.commit()
+        db.refresh(new_post)
+        return new_post
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Endpoint para actualizar un post existente
-# Endpoint con path parameter
 @app.put("/posts/{post_id}", response_model=PostPublic, response_description={"Post actualizado exitosamente"})
 # Body parameter (datos del POST a actualizar)
-async def update_post(post_id: int, data: PostUpdate):
-    for post in BLOG_POSTS:
-        if post["id"] == post_id:
-            # Excluye los campos que no se envian
-            payload = data.model_dump(exclude_unset=True)
-            if "title" in payload:
-                post["title"] = payload["title"]
-            if "content" in payload:
-                post["content"] = payload["content"]
-            return post
+async def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_db)):
+
+    # Obtenemos el post
+    post = db.query(PostORM).filter(PostORM.id == post_id).first()
 
     # Se envia una excepción HTTP si no se encuentra el post
-    raise HTTPException(status_code=404, detail="Post no encontrado")
+    if not post:
+        raise HTTPException(status_code=404, detail="Post no encontrado")
+
+    # Actualizamos el post
+    payload = data.model_dump(exclude_unset=True)
+
+    for key, value in payload.items():
+        setattr(post, key, value)
+
+    # Almacenamos los cambios en la base de datos
+    try:
+        db.commit()
+        db.refresh(post)
+        return post
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Endpoint para eliminar un post por su ID
 # Path Parameter y código de estado 204 (No Content) para la respuesta
-@app.delete("/posts/{post_id}", status_code=204)
-async def delete_post(post_id: int):
-    # Iteramos con el indice y el post para eliminar, usando enumerate para obtener el índice
-    for index, post in enumerate(BLOG_POSTS):
-        if post["id"] == post_id:
-            # Eliminamos el post usando POP con el índice
-            BLOG_POSTS.pop(index)
-            # Retornamos una respuesta vacía con el código de estado 204 (No Content)
-            return
+@app.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_post(post_id: int, db: Session = Depends(get_db)):
+    # Obtenemos el post
+    post = db.query(PostORM).filter(PostORM.id == post_id).first()
 
-    # Se envia una excepción HTTP si no se encuentra el post
-    raise HTTPException(status_code=404, detail="Post no encontrado")
+    # Si no se encuentra el post
+    if not post:
+        raise HTTPException(status_code=404, detail="Post no encontrado")
+
+    # Eliminamos el post
+    try:
+        db.delete(post)
+        db.commit()
+        return
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
