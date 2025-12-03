@@ -5,9 +5,11 @@ from math import ceil
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.db import get_db
+from app.core.security import get_current_user
 from .schemas import (PostPublic, PaginatedPost,
                       PostCreate, PostUpdate, PostSummary)
 from .repository import PostRepository
+
 
 # Se crea el router para los endpoints de posts y se le asigna un prefijo y un tag para la documentación
 router = APIRouter(prefix="/posts", tags=["Posts"])
@@ -55,7 +57,9 @@ async def get_posts(
     ),
 
     # se inyecta la sesión de la base de datos
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    # Se valida que el usuario este autenticado
+    user=Depends(get_current_user)
 ):
 
     # Se crea el repositorio
@@ -103,7 +107,10 @@ def filter_by_tags(
         min_length=1,
         description="Una o más etiquetas. Ejemplo: ?tags=python&tags=fastapi"
     ),
-    db: Session = Depends(get_db)
+    # Se inyecta la sesión de la base de datos
+    db: Session = Depends(get_db),
+    # Se valida que el usuario este autenticado
+    user=Depends(get_current_user)
 ):
     # Se crea el repositorio
     repository = PostRepository(db)
@@ -127,7 +134,11 @@ async def get_post(post_id: int = Path(
     # Query parameter
     include_content: bool = Query(
         default=True, description="Incluir contenido del post"),
-        db: Session = Depends(get_db)):
+    # Se inyecta la sesión de la base de datos
+    db: Session = Depends(get_db),
+    # Se valida que el usuario este autenticado
+    user=Depends(get_current_user)
+):
 
     # Se crea el repositorio
     repository = PostRepository(db)
@@ -155,12 +166,14 @@ async def get_post(post_id: int = Path(
              status_code=status.HTTP_201_CREATED
              )
 # Se recibe el post como un objeto de la clase PostBase
-async def create_post(post: PostCreate, db: Session = Depends(get_db)):
+async def create_post(post: PostCreate,
+                      # Se inyecta la sesión de la base de datos
+                      db: Session = Depends(get_db),
+                      # Se valida que el usuario este autenticado
+                      user=Depends(get_current_user)):
 
     # Se crea el repositorio
     repository = PostRepository(db)
-
-    print(post.user)
 
     # Se intenta agregar el autor a la base de datos
     try:
@@ -198,7 +211,7 @@ async def create_post(post: PostCreate, db: Session = Depends(get_db)):
             response_description="Post actualizado exitosamente"
             )
 # Body parameter (datos del POST a actualizar)
-async def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_db)):
+async def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
 
     # Se crea el repositorio
     repository = PostRepository(db)
@@ -236,7 +249,7 @@ async def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_
 @router.delete("/{post_id}",
                status_code=status.HTTP_204_NO_CONTENT
                )
-async def delete_post(post_id: int, db: Session = Depends(get_db)):
+async def delete_post(post_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
 
     # Se crea el repositorio
     repository = PostRepository(db)

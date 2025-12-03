@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 # Routers
 from app.api.post.router import router as post_router
+from app.api.auth.router import router as auth_router
 
 # Se cargan las variables de entorno
 load_dotenv()
@@ -19,6 +20,7 @@ def create_app() -> FastAPI:
 
     # Se agregan los routers
     app.include_router(post_router)
+    app.include_router(auth_router)
 
     # Endpoint para la pagina de inicio
     @app.get("/")

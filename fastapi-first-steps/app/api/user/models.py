@@ -20,6 +20,7 @@ class UserORM(Base):
     surname: Mapped[str] = mapped_column(String(100), index=True)
     name: Mapped[str] = mapped_column(String(100), index=True)
     email: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    username: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now())
     # Se crea la relacion con el post (lado Uno)
