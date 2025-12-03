@@ -4,6 +4,7 @@ from math import ceil
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session, selectinload, joinedload
 from app.api.post.models import PostORM
+from app.api.user.models import UserORM
 from app.api.tag.models import TagORM
 from app.api.user.repository import UserRepository
 from app.api.tag.repository import TagRepository
@@ -90,14 +91,13 @@ class PostRepository:
 
     ########### Metodo para crear un post ###########
 
-    def create(self, title: str, content: str, user: Optional[dict], tags: List[dict]) -> PostORM:
-
+    def create(self, title: str, content: str, user: UserORM, tags: List[dict]) -> PostORM:
         # Obtenemos el Usuario
         user_obj = None
         if user:
             # Obtenemos el usuario desde el repositorio de usuarios
             user_obj = UserRepository(
-                self.db).get_by_email(user['email'])
+                self.db).get_user(user)
 
         # Creamos el Objeto Post
         post = PostORM(title=title, content=content, user=user_obj)

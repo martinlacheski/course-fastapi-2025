@@ -9,7 +9,7 @@ load_dotenv()
 # Configuración de la base de datos
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./blog.db")
 
-if DATABASE_URL:
+if os.getenv("DATABASE_URL"):
     print("Conectado a PostgreSQL")
 else:
     print("Conectado a SQLite")
@@ -26,6 +26,7 @@ if DATABASE_URL.startswith("sqlite"):
 
 # se asocia el engine con la base de datos
 engine = create_engine(DATABASE_URL, **engine_kwargs)
+# engine = create_engine(DATABASE_URL, echo=True, future=True, **engine_kwargs)
 
 
 # Se configuracion de la sesión de la base de datos

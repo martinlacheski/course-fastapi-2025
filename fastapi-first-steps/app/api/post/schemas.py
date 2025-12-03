@@ -9,7 +9,7 @@ class PostBase(BaseModel):
     title: str
     content: str
     tags: Optional[List[Tag]] = []
-    user: Optional[User] = None
+    user: Optional[User]
 
     # Se configura el modelo de Pydantic para que se pueda convertir a JSON
     model_config = ConfigDict(from_attributes=True)
