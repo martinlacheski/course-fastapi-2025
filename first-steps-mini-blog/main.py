@@ -1,5 +1,4 @@
 from math import ceil
-from sqlalchemy.orm.session import Session
 import os
 
 from datetime import datetime
@@ -11,20 +10,31 @@ from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from sqlalchemy import create_engine, Integer, String, Text, DateTime, select, func, UniqueConstraint, ForeignKey, Table, Column
 from sqlalchemy.orm import sessionmaker, Session, DeclarativeBase, Mapped, mapped_column, relationship, selectinload, joinedload
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configuración de la base de datos
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./blog.db")
-print("conectado a", DATABASE_URL)
+
+if DATABASE_URL:
+    print("Conectado a PostgreSQL")
+else:
+    print("Conectado a SQLite")
+
 
 # Se crea el engine de la base de datos
 engine_kwargs = {}
+
 
 # Si la base de datos es sqlite, se agrega el parametro check_same_thread
 if DATABASE_URL.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 
+
 # se asocia el engine con la base de datos
 engine = create_engine(DATABASE_URL, **engine_kwargs)
+
 
 # Se configuracion de la sesión de la base de datos
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -33,6 +43,17 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Se crea la clase base para la base de datos
 class Base(DeclarativeBase):
     pass
+
+
+# Se crea la tabla INTERMEDIA de la relacion muchos a muchos
+post_tags = Table(
+    "post_tags",  # nombre de la tabla
+    Base.metadata,  # metadata de la base de datos
+    Column("post_id", ForeignKey("posts.id",
+           ondelete="CASCADE"), primary_key=True),  # clave foranea de la tabla posts
+    Column("tag_id", ForeignKey("tags.id",
+           ondelete="CASCADE"), primary_key=True),  # clave foranea de la tabla tags
+)
 
 
 # Se crea la clase AuthorORM para manejar los autores en la base de datos
@@ -48,17 +69,6 @@ class AuthorORM(Base):
     posts: Mapped[List["PostORM"]] = relationship(back_populates="author")
 
 
-# Se crea la tabla INTERMEDIA de la relacion muchos a muchos
-post_tags = Table(
-    "post_tags",  # nombre de la tabla
-    Base.metadata,  # metadata de la base de datos
-    Column("post_id", ForeignKey("posts.id"),
-           primary_key=True),  # clave foranea de la tabla posts
-    Column("tag_id", ForeignKey("tags.id"),
-           primary_key=True),  # clave foranea de la tabla tags
-)
-
-
 # Se crea la clase TagORM para manejar los tags en la base de datos
 class TagORM(Base):
     __tablename__ = "tags"
@@ -70,9 +80,9 @@ class TagORM(Base):
 
     # Se crea la relacion con el post (lado Uno)
     posts: Mapped[List["PostORM"]] = relationship(
-        secondary=post_tags,
-        back_populates="tags",
-        lazy="selectin"
+        secondary=post_tags,  # tabla intermedia
+        back_populates="tags",  # relacion con el post
+        lazy="selectin",  # lazy loading
     )
 
 
@@ -92,12 +102,12 @@ class PostORM(Base):
     author: Mapped[Optional["AuthorORM"]] = relationship(
         back_populates="posts")
 
-    # Se crea la relacion con el post (lado Muchos)
+    # Se crea la relacion con el post
     tags: Mapped[List["TagORM"]] = relationship(
-        secondary=post_tags,
-        back_populates="posts",
-        lazy="selectin",
-        passive_deletes=True
+        secondary=post_tags,  # tabla intermedia
+        back_populates="posts",  # relacion con el post
+        lazy="selectin",  # lazy loading
+        passive_deletes=True  # para que no se borren los tags al borrar un post
     )
 
 
@@ -114,6 +124,7 @@ def get_db():
         db.close()  # Se cierra la sesión de la base de datos
 
 
+# Se crea la instancia de la aplicacion
 app = FastAPI(title="Mini Blog")
 
 
@@ -124,10 +135,16 @@ class Tag(BaseModel):
     name: str = Field(..., min_length=2, max_length=30,
                       description="Nombre del tag (mínimo 2 caracteres, máximo 30)")
 
+    # Se configura el modelo de Pydantic para que se pueda convertir a JSON
+    model_config = ConfigDict(from_attributes=True)
+
 
 class Author(BaseModel):
     name: str
     email: EmailStr  # EmailStr comprueba que sea un email valido
+
+    # Se configura el modelo de Pydantic para que se pueda convertir a JSON
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PostBase(BaseModel):
@@ -135,6 +152,9 @@ class PostBase(BaseModel):
     content: str
     tags: Optional[List[Tag]] = []
     author: Optional[Author] = None
+
+    # Se configura el modelo de Pydantic para que se pueda convertir a JSON
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PostCreate(BaseModel):
@@ -325,11 +345,14 @@ def filter_by_tags(
     ),
     db: Session = Depends(get_db)
 ):
+    # Se normalizan los nombres de las etiquetas
     normalized_tag_names = [tag.strip().lower() for tag in tags if tag.strip()]
 
+    # Se retorna una lista vacía si no hay etiquetas
     if not normalized_tag_names:
         return []
 
+    # Se crea la query para obtener los posts filtrados por las etiquetas
     post_list = (
         select(PostORM)
         .options(
@@ -339,8 +362,10 @@ def filter_by_tags(
         .order_by(PostORM.id.asc())
     )
 
+    # Se ejecuta la query y se obtienen los posts
     posts = db.execute(post_list).scalars().all()
 
+    # Se retorna la lista de posts
     return posts
 
 
@@ -375,10 +400,70 @@ async def get_post(post_id: int = Path(
 @app.post("/posts", response_model=PostPublic, response_description={"Post creado exitosamente"}, status_code=status.HTTP_201_CREATED)
 # Se recibe el post como un objeto de la clase PostBase
 async def create_post(post: PostCreate, db: Session = Depends(get_db)):
+
+    # Se inicializa el autor
+    author_obj = None
+
+    # Si el post tiene autor
+    if post.author:
+        author_obj = db.execute(
+            select(AuthorORM).where(
+                AuthorORM.email == post.author.email
+            )
+        ).scalar_one_or_none()
+
+        # Si no se encuentra el autor, se crea
+        if not author_obj:
+            author_obj = AuthorORM(
+                name=post.author.name,
+                email=post.author.email
+            )
+            # Se intenta agregar el autor a la base de datos
+            try:
+                db.add(author_obj)
+                db.commit()
+                # db.flush()  # Se fuerza el guardado de la transacción y se obtiene el ID
+                # SAWarning: Object of type <PostORM> not in session, add operation along 'AuthorORM.posts' will not proceed
+            except IntegrityError as e:
+                db.rollback()
+                raise HTTPException(status_code=409, detail=str(e))
+            except SQLAlchemyError as e:
+                db.rollback()
+                raise HTTPException(status_code=500, detail=str(e))
+
+    # Se crea el post
     new_post = PostORM(
-        title=post.title,
-        content=post.content,
+        title=post.title,  # Titulo del post
+        content=post.content,  # Contenido del post
+        author=author_obj  # Autor del post
     )
+
+    # Se visualizan los TAGs del post
+    for tag in post.tags:
+        tag_obj = db.execute(
+            select(TagORM).where(
+                TagORM.name.ilike(tag.name)
+            )
+        ).scalar_one_or_none()
+
+        # Si no se encuentra el tag, se crea
+        if not tag_obj:
+            tag_obj = TagORM(name=tag.name)
+            try:
+                db.add(tag_obj)
+                db.commit()
+                # db.flush()  # Se fuerza el guardado de la transacción y se obtiene el ID
+                # SAWarning: Object of type <PostORM> not in session, add operation along 'TagORM.posts' won't proceed
+            except IntegrityError as e:
+                db.rollback()
+                raise HTTPException(status_code=409, detail=str(e))
+            except SQLAlchemyError as e:
+                db.rollback()
+                raise HTTPException(status_code=500, detail=str(e))
+
+        # Se agrega el tag al post
+        new_post.tags.append(tag_obj)
+
     try:
         db.add(new_post)
         db.commit()
