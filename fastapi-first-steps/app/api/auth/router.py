@@ -14,7 +14,8 @@ FAKE_USERS = {
         "email": "martin@fastapi.com",
         "surname": "Lacheski",
         "name": "Martin",
-        "username": "martin"
+        "username": "martin",
+        "password": "ninguna"
     }
 }
 

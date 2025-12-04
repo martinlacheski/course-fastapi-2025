@@ -211,7 +211,12 @@ async def create_post(post: PostCreate,
             response_description="Post actualizado exitosamente"
             )
 # Body parameter (datos del POST a actualizar)
-async def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_db), user=Depends(get_current_user)):
+async def update_post(
+    post_id: int,
+    data: PostUpdate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user)
+):
 
     # Se crea el repositorio
     repository = PostRepository(db)
@@ -239,17 +244,24 @@ async def update_post(post_id: int, data: PostUpdate, db: Session = Depends(get_
         return post
 
     # Si ocurre un error, se lanza una excepción
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except SQLAlchemyError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error al actualizar el post")
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 # Endpoint para eliminar un post por su ID. código de estado 204 (No Content) para la respuesta
 @router.delete("/{post_id}",
                status_code=status.HTTP_204_NO_CONTENT
                )
-async def delete_post(post_id: int, db: Session = Depends(get_db), user=Depends(get_current_user)):
+async def delete_post(post_id: int,
+                      db: Session = Depends(get_db),
+                      user=Depends(get_current_user)
+                      ):
 
     # Se crea el repositorio
     repository = PostRepository(db)
@@ -270,7 +282,11 @@ async def delete_post(post_id: int, db: Session = Depends(get_db), user=Depends(
         db.commit()
 
     # Si ocurre un error, se lanza una excepción
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except SQLAlchemyError:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error al eliminar el post")
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

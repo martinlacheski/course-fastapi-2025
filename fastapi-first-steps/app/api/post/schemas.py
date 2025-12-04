@@ -1,14 +1,14 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Literal
-from app.api.tag.schemas import Tag
+from app.api.tag.schemas import TagPublic
 from app.api.user.schemas import User
 
 
 class PostBase(BaseModel):
     title: str
     content: str
-    tags: Optional[List[Tag]] = []
+    tags: Optional[List[TagPublic]] = []
     user: Optional[User]
 
     # Se configura el modelo de Pydantic para que se pueda convertir a JSON
@@ -31,9 +31,9 @@ class PostCreate(BaseModel):
     )
 
     # Se agrega una lista de tags con un minimo de 1 y un maximo de 5
-    tags: List[Tag] = Field(..., min_length=1, max_length=5,
-                            description="Tags del post (mínimo 1, máximo 5)"
-                            )
+    tags: List[TagPublic] = Field(..., min_length=1, max_length=5,
+                                  description="Tags del post (mínimo 1, máximo 5)"
+                                  )
 
     user: User = Field(..., description="Usuario del post")
 
