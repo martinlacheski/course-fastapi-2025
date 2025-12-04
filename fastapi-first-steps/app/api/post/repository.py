@@ -1,3 +1,5 @@
+from app.api.post.schemas import PostPublic
+from app.services.pagination import paginate_query
 from typing import List, Optional, Tuple
 from math import ceil
 
@@ -23,46 +25,47 @@ class PostRepository:
 
     ########### Metodo para buscar posts ###########
 
-    async def search(
+    def search(
             self,
-            query: Optional[str],
+            search: Optional[str],
             order_by: str,
             direction: str,
             page: int,
             per_page: int
-    ) -> Tuple[int, List[PostORM]]:
+    ):
 
         # Se retorna la lista de posts
-        results = self.db.query(PostORM).all()
+        # results = self.db.query(PostORM).all()
+        query = select(PostORM)
 
         # Se retorna la lista de posts filtrada por la búsqueda
-        if query:
-            results = self.db.execute(select(PostORM).where(
-                PostORM.title.contains(query)
-            ))
+        if search:
+            query = query.where(PostORM.title.contains(search))
 
-        # Obtenemos el total de resultados
-        total = self.db.query(PostORM).count() or 0
+        # Se definen los ordenamientos permitidos en la paginación
+        allowed_order = {
+            "id": PostORM.id,
+            "title": func.lower(PostORM.title),
+        }
 
-        # Si no hay resultados retornamos una lista vacía
-        if total == 0:
-            return 0, []
-
-        # Obtenemos la página actual
-        current_page = min(page, max(1, ceil(total/per_page)))
-
-        # Ordenamos los resultados y aplicamos REVERSE si aplica
-        results = self.db.query(PostORM).order_by(
-            getattr(PostORM, order_by).desc() if direction == "desc" else getattr(
-                PostORM, order_by).asc()
+        # Se ejecuta la query con la paginación
+        result = paginate_query(
+            db=self.db,
+            model=PostORM,
+            base_query=query,
+            page=page,
+            per_page=per_page,
+            order_by=order_by,
+            direction=direction,
+            allowed_order=allowed_order
         )
 
-        # Obtenemos los resultados de la página actual
-        start = (current_page - 1) * per_page
-        # items: List[PostORM] = self.db.execute(results.limit(per_page).offset(start)).scalars().all()
-        items: List[PostORM] = results.offset(start).limit(per_page).all()
+        # Se mapea la query a PostPublic para que la respuesta sea un JSON
+        result["items"] = [PostPublic.model_validate(
+            item) for item in result["items"]]
 
-        return total, items
+        # Se retorna el resultado
+        return result
 
     ########### Metodo para buscar posts por tags ###########
 

@@ -19,81 +19,24 @@ router = APIRouter(prefix="/posts", tags=["Posts"])
 
 # Endpoint para obtener posts con búsqueda opcional (Devuelve una lista del modelo PostPublic)
 @router.get("/",
-            response_model=PaginatedPost
+            response_model=dict
             )
 # Búsqueda por titulo
 async def get_posts(
-    query: Optional[str] = Query(
-        default=None,
-        description="Buscar en los títulos de los posts",
-        alias="search",  # Alias para que el nombre del parámetro sea "search" en la documentación
-        min_length=3,  # Minimo 3 caracteres
-        max_length=50,  # Maximo 50 caracteres
-        pattern=r"^[\w\sáéíóúÁÉÍÓÚüÜ-]+$"  # Solo letras, numeros y espacios
-    ),
-
-    #### Paginación ####
-
-    # Cantidad de resultados por página
-    per_page: int = Query(
-        10, ge=1, le=50,
-        description="Cantidad de resultados por página (1-50)"
-    ),
-
-    # Número de página
-    page: int = Query(
-        1, ge=1,
-        description="Número de página (>=1)"
-    ),
-
-    # Ordenación
-    order_by: Literal["id", "title"] = Query(
-        "id", description="Ordenar por id o title"
-    ),
-
-    # Dirección de orden
-    direction: Literal["asc", "desc"] = Query(
-        "asc", description="Dirección de orden (asc o desc)"
-    ),
-
-    # se inyecta la sesión de la base de datos
-    db: Session = Depends(get_db),
-    # Se valida que el usuario este autenticado
-    user=Depends(get_current_user)
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=100),
+    order_by: str = Query("id", pattern="^(id|title)$"),
+    direction: str = Query("asc", pattern="^(asc|desc)$"),
+    search: str | None = Query(None),
+    db: Session = Depends(get_db)
 ):
-
-    # Se crea el repositorio
     repository = PostRepository(db)
-
-    # Obtenemos los posts paginados
-    query = query if query else None
-
-    # Obtenemos los posts paginados
-    total, items = await repository.search(
-        query, order_by, direction, page, per_page)
-
-    # Obtenemos el total de paginas
-    total_pages = ceil(total/per_page) if total > 0 else 0
-
-    # Obtenemos la pagina actual
-    current_page = 1 if total_pages == 0 else min(page, total_pages)
-
-    # Obtenemos si hay anterior y siguiente
-    has_prev = current_page > 1
-    has_next = current_page < total_pages if total_pages > 0 else False
-
-    # Retornamos la lista de posts paginada
-    return PaginatedPost(
-        page=current_page,
+    return repository.search(
+        page=page,
         per_page=per_page,
-        total=total,
-        total_pages=total_pages,
-        has_prev=has_prev,
-        has_next=has_next,
         order_by=order_by,
         direction=direction,
-        search=query,
-        items=items
+        search=search
     )
 
 
@@ -248,7 +191,7 @@ async def update_post(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -286,7 +229,7 @@ async def delete_post(post_id: int,
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

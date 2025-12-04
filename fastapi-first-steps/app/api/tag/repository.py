@@ -17,7 +17,7 @@ class TagRepository:
     ########### Metodo para obtener una tag por su ID ###########
 
     def get_by_id(self, id: int) -> Optional[TagORM]:
-        return self.db.query(TagORM).filter(TagORM.id == id).first()
+        return self.db.query(TagORM).filter(TagORM.id.ilike(id)).first()
 
     ########### Metodo para obtener una tag por su nombre ###########
 
@@ -52,13 +52,13 @@ class TagRepository:
             query = query.where(func.lower(
                 TagORM.name).ilike(f"%{search.lower()}%"))
 
-        # Se definen los ordenamientos permitidos
+        # Se definen los ordenamientos permitidos en la paginación
         allowed_order = {
             "id": TagORM.id,
             "name": func.lower(TagORM.name),
         }
 
-        # Se ejecuta la query
+        # Se ejecuta la query con la paginación
         result = paginate_query(
             db=self.db,
             model=TagORM,
@@ -70,7 +70,7 @@ class TagRepository:
             allowed_order=allowed_order
         )
 
-        # Se mapea la query
+        # Se mapea la query a TagPublic para que la respuesta sea un JSON
         result["items"] = [TagPublic.model_validate(
             item) for item in result["items"]]
 
@@ -112,32 +112,3 @@ class TagRepository:
 
     def delete(self, tag: TagORM) -> None:
         self.db.delete(tag)
-
-    ########### Metodo para obtener la tag mas popular ###########
-
-    def most_popular(self) -> dict | None:
-
-        # Se verifica si hay tags
-        row = (
-            self.db.execute(
-                # Se seleccionan los campos
-                select(
-                    TagORM.id.label("id"),
-                    TagORM.name.label("name"),
-                    func.count(PostORM.id).label("uses")
-                )
-                # Se hace la union de las tablas
-                .join(post_tags, post_tags.c.tag_id == TagORM.id)
-                .join(PostORM, PostORM.id == post_tags.c.post_id)
-                .group_by(TagORM.id, TagORM.name)
-                # Se ordena por la cantidad de usos
-                .order_by(func.count(PostORM.id).desc(), func.lower(TagORM.name).asc())
-                # Se limita a 1 para obtener la mas popular
-                .limit(1)
-            )
-            .mappings()
-            .first()
-        )
-
-        # Si no hay tags, se retorna None
-        return dict(row) if row else None

@@ -29,7 +29,13 @@ async def list_tags(
     db: Session = Depends(get_db)
 ):
     repository = TagRepository(db)
-    return repository.list_tags(page=page, per_page=per_page, order_by=order_by, direction=direction, search=search)
+    return repository.list_tags(
+        page=page,
+        per_page=per_page,
+        order_by=order_by,
+        direction=direction,
+        search=search
+    )
 
 
 # Endpoint para obtener un tag por su ID
@@ -70,12 +76,12 @@ async def get_tag(tag_id: int = Path(
              status_code=status.HTTP_201_CREATED
              )
 # Crear una nueva etiqueta con validación de usuario autenticado
-def create_tag(tag: TagCreate,
-               # Se inyecta la sesión de la base de datos
-               db: Session = Depends(get_db),
-               # Se valida que el usuario este autenticado
-               user=Depends(get_current_user)
-               ):
+async def create_tag(tag: TagCreate,
+                     # Se inyecta la sesión de la base de datos
+                     db: Session = Depends(get_db),
+                     # Se valida que el usuario este autenticado
+                     user=Depends(get_current_user)
+                     ):
 
     # Se crea el repositorio
     repository = TagRepository(db)
@@ -112,7 +118,7 @@ def create_tag(tag: TagCreate,
             response_description="Etiqueta actualizada exitosamente"
             )
 # Actualizar una etiqueta con validación de usuario autenticado
-def update_tag(
+async def update_tag(
     tag_id: int,
     payload: TagUpdate,
     # Se inyecta la sesión de la base de datos
@@ -161,11 +167,11 @@ def update_tag(
     "/{tag_id}",
     status_code=status.HTTP_204_NO_CONTENT
 )
-def delete_tag(tag_id: int,
-               # Se inyecta la sesión de la base de datos
-               db: Session = Depends(get_db),
-               # Se valida que el usuario este autenticado
-               user=Depends(get_current_user)):
+async def delete_tag(tag_id: int,
+                     # Se inyecta la sesión de la base de datos
+                     db: Session = Depends(get_db),
+                     # Se valida que el usuario este autenticado
+                     user=Depends(get_current_user)):
 
     # Se crea el repositorio
     repository = TagRepository(db)
@@ -190,29 +196,7 @@ def delete_tag(tag_id: int,
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(e))
-    except SQLAlchemyError:
+    except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-
-# Endpoint para obtener la etiqueta mas popular
-@router.get("/popular/top")
-def get_most_popular_tag(
-    # Se inyecta la sesión de la base de datos
-    db: Session = Depends(get_db),
-    # Se valida que el usuario este autenticado
-    user=Depends(get_current_user)
-):
-    # Se crea el repositorio
-    repository = TagRepository(db)
-
-    # Se obtiene el tag mas popular
-    row = repository.most_popular()
-
-    # Si no se encuentra el tag, se lanza una excepción
-    if not row:
-        raise HTTPException(status_code=404, detail="No hay tags en uso")
-
-    # Se retorna el tag mas popular
-    return row

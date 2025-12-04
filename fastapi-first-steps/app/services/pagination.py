@@ -7,9 +7,8 @@ from sqlalchemy.orm import Session
 DEFAULT_PER_PAGE = 10
 MAX_PER_PAGE = 100
 
+
 # Sanitiza la paginación
-
-
 def sanitize_pagination(page: int = 1, per_page: int = DEFAULT_PER_PAGE):
     # Se valida que la página sea mayor o igual a 1
     page = max(1, int(page or 1))
@@ -18,9 +17,8 @@ def sanitize_pagination(page: int = 1, per_page: int = DEFAULT_PER_PAGE):
     # Se retorna la página y el número de elementos por página
     return page, per_page
 
+
 # Función para obtener los resultados paginados
-
-
 def paginate_query(
     db: Session,
     model,
@@ -30,7 +28,7 @@ def paginate_query(
     order_by: Optional[str] = None,
     direction: str = "asc",
     allowed_order: Optional[Dict[str, Any]] = None
-):
+) -> Dict[str, Any]:
     page, per_page = sanitize_pagination(page, per_page)
     # Se crea la consulta base
     query = base_query if base_query is not None else select(model)
@@ -43,10 +41,21 @@ def paginate_query(
         return {"total": 0, "pages": 0, "page": page, "per_page": per_page, "items": []}
 
     # Si se especifica un ordenamiento y se permite el ordenamiento
+    # if allowed_order and order_by:
+    #     col = allowed_order.get(order_by, allowed_order.get("id"))
+    #     query = query.order_by(col.desc() if direction ==
+    #                            "desc" else col.asc())
+
+    # Si se especifica y permite el ordenamiento
     if allowed_order and order_by:
-        col = allowed_order.get(order_by, allowed_order.get("id"))
-        query = query.order_by(col.desc() if direction ==
-                               "desc" else col.asc())
+        if order_by in allowed_order:
+            col = allowed_order[order_by]
+        else:
+            col = allowed_order.get("id")  # fallback
+
+        if col is not None:
+            query = query.order_by(
+                col.desc() if direction == "desc" else col.asc())
 
     # Se obtienen los elementos
     items = db.execute(query.offset(
