@@ -27,7 +27,10 @@ async def get_posts(
     order_by: str = Query("id", pattern="^(id|title)$"),
     direction: str = Query("asc", pattern="^(asc|desc)$"),
     search: str | None = Query(None),
-    db: Session = Depends(get_db)
+    # Se inyecta la sesión de la base de datos
+    db: Session = Depends(get_db),
+    # Se valida que el usuario este autenticado
+    user=Depends(get_current_user)
 ):
     repository = PostRepository(db)
     return repository.search(
@@ -156,7 +159,9 @@ async def create_post(post: PostCreate,
 async def update_post(
     post_id: int,
     data: PostUpdate,
+    # Se inyecta la sesión de la base de datos
     db: Session = Depends(get_db),
+    # Se valida que el usuario este autenticado
     user=Depends(get_current_user)
 ):
 
@@ -201,7 +206,9 @@ async def update_post(
                status_code=status.HTTP_204_NO_CONTENT
                )
 async def delete_post(post_id: int,
+                      # Se inyecta la sesión de la base de datos
                       db: Session = Depends(get_db),
+                      # Se valida que el usuario este autenticado
                       user=Depends(get_current_user)
                       ):
 

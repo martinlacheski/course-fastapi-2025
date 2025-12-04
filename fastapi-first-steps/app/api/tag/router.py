@@ -26,7 +26,10 @@ async def list_tags(
     order_by: str = Query("id", pattern="^(id|name)$"),
     direction: str = Query("asc", pattern="^(asc|desc)$"),
     search: str | None = Query(None),
-    db: Session = Depends(get_db)
+    # Se inyecta la sesión de la base de datos
+    db: Session = Depends(get_db),
+    # Se valida que el usuario este autenticado
+    user=Depends(get_current_user)
 ):
     repository = TagRepository(db)
     return repository.list_tags(
