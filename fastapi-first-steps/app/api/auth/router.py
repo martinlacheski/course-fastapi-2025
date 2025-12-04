@@ -1,46 +1,25 @@
-import os
-from datetime import timedelta
+
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from .schemas import Token, UserPublic
-from fastapi.security import OAuth2PasswordRequestForm
-
-from app.core.security import create_access_token, get_current_user
-
-
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
-
-
-FAKE_USERS = {
-    "martin@fastapi.com": {
-        "email": "martin@fastapi.com",
-        "surname": "Lacheski",
-        "name": "Martin",
-        "username": "martin",
-        "password": "ninguna"
-    }
-}
+from .schemas import TokenResponse, UserPublic
+from app.api.user.schemas import UserLogin
+from app.core.security import create_access_token, get_current_user, verify_password
+from app.core.db import get_db
+from app.api.user.repository import UserRepository
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-@router.post("/login", response_model=Token)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    user = FAKE_USERS.get(form_data.username)
-    if not user or user["password"] != form_data.password:
+@router.post("/login", response_model=TokenResponse)
+async def login(payload: UserLogin, db: Session = Depends(get_db)):
+    repository = UserRepository(db)
+    user = repository.get_by_email(payload.username)
+    if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas")
-
-    token = create_access_token(
-        data={
-            "email": user["email"],
-            "username": user["username"],
-            "surname": user["surname"],
-            "name": user["name"]
-        },
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-
-    return {"access_token": token, "token_type": "bearer"}
+    token = create_access_token(subject=str(user.id))
+    return TokenResponse(access_token=token, user=UserPublic.model_validate(user))
 
 
 @router.get("/me", response_model=UserPublic)

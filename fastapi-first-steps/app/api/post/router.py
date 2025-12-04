@@ -1,13 +1,12 @@
 from fastapi import APIRouter, Query, Depends, HTTPException, Path, status
-from typing import Union, Literal, List, Optional
+from typing import Union, List
 from sqlalchemy.orm import Session
 from math import ceil
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.core.db import get_db
 from app.core.security import get_current_user
-from .schemas import (PostPublic, PaginatedPost,
-                      PostCreate, PostUpdate, PostSummary)
+from .schemas import (PostPublic, PostCreate, PostUpdate, PostSummary)
 from .repository import PostRepository
 
 

@@ -1,17 +1,16 @@
-from pydantic import BaseModel, ConfigDict
+
+from app.core.config import settings
+from pydantic import BaseModel
+from app.api.user.schemas import UserPublic
 
 
-class Token(BaseModel):
+class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    expires_in: int = int(settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+    user: UserPublic
 
 
 class TokenData(BaseModel):
     email: str
     username: str
-
-
-class UserPublic(BaseModel):
-    email: str
-    username: str
-    model_config = ConfigDict(from_attributes=True)
