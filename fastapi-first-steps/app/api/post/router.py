@@ -116,18 +116,17 @@ async def create_post(post: PostCreate,
                       db: Session = Depends(get_db),
                       # Se valida que el usuario este autenticado
                       user=Depends(get_current_user)):
-
     # Se crea el repositorio
     repository = PostRepository(db)
 
-    # Se intenta agregar el autor a la base de datos
     try:
 
         created_post = repository.create(
             title=post.title,
             content=post.content,
-            user=post.user.model_dump(),
             tags=[tag.model_dump() for tag in post.tags],
+            category_id=post.category_id,
+            user=user
         )
 
         # Se guardan los cambios en la base de datos

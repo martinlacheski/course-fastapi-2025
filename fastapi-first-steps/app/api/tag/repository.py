@@ -31,7 +31,7 @@ class TagRepository:
 
         tag_obj = TagORM(name=name)
         self.db.add(tag_obj)
-        self.db.flush()
+        # self.db.flush()
         return tag_obj
 
     ########### Metodo para listar las tags ###########

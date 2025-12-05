@@ -12,6 +12,7 @@ from app.core.db import Base
 if TYPE_CHECKING:
     from app.api.user.models import UserORM
     from app.api.tag.models import TagORM
+    from app.api.category.models import CategoryORM
 
 
 # Se crea la tabla INTERMEDIA de la relacion muchos a muchos
@@ -39,6 +40,12 @@ class PostORM(Base):
     # Se crea la relacion con el post (lado Muchos)
     user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"))
     user: Mapped[Optional["UserORM"]] = relationship(
+        back_populates="posts")
+
+    # Se crea la relacion con la categoria
+    category_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("categories.id", ondelete="SET NULL"), nullable=True, index=True)
+    category: Mapped[Optional["CategoryORM"]] = relationship(
         back_populates="posts")
 
     # Se crea la relacion con el post

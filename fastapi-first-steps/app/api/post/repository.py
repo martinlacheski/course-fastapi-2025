@@ -1,15 +1,16 @@
+
+from fastapi import Depends
 from app.api.post.schemas import PostPublic
 from app.services.pagination import paginate_query
-from typing import List, Optional, Tuple
-from math import ceil
-
+from typing import List, Optional
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session, selectinload, joinedload
 from app.api.post.models import PostORM
-from app.api.user.models import UserORM
 from app.api.tag.models import TagORM
+from app.api.user.models import UserORM
 from app.api.user.repository import UserRepository
 from app.api.tag.repository import TagRepository
+from app.core.security import get_current_user
 
 
 class PostRepository:
@@ -94,16 +95,18 @@ class PostRepository:
 
     ########### Metodo para crear un post ###########
 
-    def create(self, title: str, content: str, user: UserORM, tags: List[dict]) -> PostORM:
-        # Obtenemos el Usuario
-        user_obj = None
-        if user:
-            # Obtenemos el usuario desde el repositorio de usuarios
-            user_obj = UserRepository(
-                self.db).get_user(user)
+    def create(
+        self,
+        title: str,
+        content: str,
+        tags: List[dict],
+        category_id: Optional[int],
+        user: UserORM
+    ) -> PostORM:
 
         # Creamos el Objeto Post
-        post = PostORM(title=title, content=content, user=user_obj)
+        post = PostORM(title=title, content=content,
+                       user=user, category_id=category_id)
 
         # Asignamos las etiquetas al Objeto Post
         for tag in tags:

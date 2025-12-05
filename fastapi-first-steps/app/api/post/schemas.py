@@ -1,15 +1,17 @@
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional, List, Literal
-from app.api.tag.schemas import TagPublic
+from typing import Optional, List
+from app.api.tag.schemas import TagCreate
+from app.api.category.schemas import CategoryPublic
 from app.api.user.schemas import User
 
 
 class PostBase(BaseModel):
     title: str
     content: str
-    tags: Optional[List[TagPublic]] = []
-    user: Optional[User]
+    tags: Optional[List[TagCreate]] = []
+    user: Optional[User] = None
+    category: Optional[CategoryPublic] = None
 
     # Se configura el modelo de Pydantic para que se pueda convertir a JSON
     model_config = ConfigDict(from_attributes=True)
@@ -30,12 +32,12 @@ class PostCreate(BaseModel):
         examples=["Contenido del post"]
     )
 
+    # Se agrega el ID de la categoria
+    category_id: Optional[int] = None
     # Se agrega una lista de tags con un minimo de 1 y un maximo de 5
-    tags: List[TagPublic] = Field(..., min_length=1, max_length=5,
+    tags: List[TagCreate] = Field(..., min_length=1, max_length=5,
                                   description="Tags del post (mínimo 1, máximo 5)"
                                   )
-
-    user: User = Field(..., description="Usuario del post")
 
 
 class PostUpdate(BaseModel):
@@ -66,17 +68,3 @@ class PostPublic(PostBase):
 class PostSummary(BaseModel):
     id: int
     title: str
-
-
-# Se crea la clase PaginatedPost para manejar los posts paginados
-class PaginatedPost(BaseModel):
-    page: int
-    per_page: int
-    total: int
-    total_pages: int
-    has_prev: bool
-    has_next: bool
-    order_by: Literal["id", "title"]
-    direction: Literal["asc", "desc"]
-    search: Optional[str] = None
-    items: List[PostPublic]
