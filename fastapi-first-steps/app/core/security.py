@@ -23,11 +23,10 @@ credentials_exception = HTTPException(
 )
 
 
-def create_access_token(user: dict, minutes: int | None = None) -> str:
+def create_access_token(subject: str) -> str:
     expire = datetime.now(
-        timezone.utc) + timedelta(minutes=minutes or settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
-    # Se serializa "expire" para que sea serializable
-    return jwt.encode({"user": user, "expire": expire.isoformat()}, key=settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+        timezone.utc) + timedelta(settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+    return jwt.encode({"subject": subject, "expire": expire}, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
 def decode_token(token: str) -> dict:
@@ -66,17 +65,13 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 async def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2)) -> UserORM:
 
-    # Se intenta decodificar el token
     try:
-        # Se decodifica el token
         payload = decode_token(token)
-        # Se obtiene el usuario
-        user: Optional[str] = payload.get("user")
-        if not user:
+        subject: Optional[str] = payload.get("subject")
+        if not subject:
             raise credentials_exception
 
-        # Se obtiene el ID del usuario
-        user_id = int(user.get("id"))
+        user_id = int(subject)
     except ExpiredSignatureError:
         raise raise_expired_token()
     except InvalidTokenError:
@@ -84,14 +79,11 @@ async def get_current_user(db: Session = Depends(get_db), token: str = Depends(o
     except PyJWTError:
         raise raise_invalid_credentials()
 
-    # Se obtiene el usuario
     user = db.get(UserORM, user_id)
 
-    # Si no se encuentra el usuario o el usuario no esta activo, se lanza una excepcion
     if not user or not user.is_active:
         raise raise_invalid_credentials()
 
-    # Se retorna el usuario
     return user
 
 
