@@ -12,7 +12,7 @@ class Label(SQLModel, table=True):
     # se asegura de que no haya dos etiquetas con el mismo nombre para el mismo usuario
 
     __table_args__ = (UniqueConstraint(
-        "owner_id", "name", name="uq_label_owner_name"),)
+        "owner_id", "name", name="uq_label_owner_link"),)
 
     id: int = Field(default=None, primary_key=True)
     name: str = Field(index=True, min_length=1, max_length=50)
@@ -28,7 +28,7 @@ class NoteLabelLink(SQLModel, table=True):
     # se asegura de que no haya dos etiquetas con el mismo nombre para la misma nota
 
     __table_args__ = (UniqueConstraint(
-        "note_id", "label_id", name="uq_label_owner_name"),)
+        "note_id", "label_id", name="uq_note_label_link"),)
 
     id: int = Field(default=None, primary_key=True)
     # Relación con la nota

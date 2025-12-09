@@ -6,7 +6,6 @@ class Settings(BaseSettings):
     # Configuración del .env en Pydantic v2
     model_config = SettingsConfigDict(
         env_file=".env",
-        # extra="ignore",       # opcional, pero suele ser útil
     )
 
     DATABASE_URL: str
@@ -14,6 +13,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str
     JWT_EXPIRES_MINUTES: int
     PROJECT_NAME: str
+    ENVIRONMENT: str
 
 
 settings = Settings()  # ty:ignore[missing-argument]

@@ -11,8 +11,12 @@ engine = create_engine(settings.DATABASE_URL, echo=False, connect_args={
 
 
 def init_db() -> None:
-    """Se inicializa la base de datos con SQLModel y se crean las tablas"""
-    SQLModel.metadata.create_all(engine)  # Instancia de Desarrollo
+    if settings.ENVIRONMENT == "DEV":
+        """Se inicializa la base de datos con SQLModel y se crean las tablas"""
+        SQLModel.metadata.create_all(engine)  # Instancia de Desarrollo
+    elif settings.ENVIRONMENT == "PROD":
+        """Se inicializa la base de datos con SQLModel y se generan las migraciones con Alembic"""
+        pass
 
 
 def get_session() -> Iterator[Session]:
