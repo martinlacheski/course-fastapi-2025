@@ -7,8 +7,8 @@ from sqlmodel import Session
 
 from app.core.db import get_session
 from app.core.security import decode_token
-from app.api.user.model import User
-from app.api.user.repository import UserRepository
+from app.api.auth.model import User
+from app.api.auth.repository import UserRepository
 
 oauth2 = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -37,8 +37,14 @@ def get_current_user(token: Annotated[str, Depends(oauth2)], db: DBSession) -> U
     # Se intenta decodificar el token
     try:
         payload = decode_token(token)
-        print(payload.get("data"))
-        user_id = int(payload.get("data"))  # type: ignore
+        data = payload.get("data")
+
+        # Si no hay datos o el id no está en los datos, se lanza la excepción
+        if not data or "id" not in data:
+            raise credentials_exc
+
+        # Se obtiene el id del usuario
+        user_id = int(data["id"])
     except Exception:
         raise credentials_exc
 

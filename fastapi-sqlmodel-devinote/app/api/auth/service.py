@@ -1,8 +1,8 @@
 
 from fastapi import HTTPException, status
 
-from app.api.user.model import User, UserCreate
-from app.api.user.repository import UserRepository
+from app.api.auth.model import User, UserCreate
+from app.api.auth.repository import UserRepository
 from app.core.security import (create_access_token, hash_password,
                                verify_password)
 
@@ -33,7 +33,7 @@ class AuthService:
             surname=payload.surname,
             name=payload.name,
             username=payload.username,
-            password=payload.password,
+            password=hash_password(payload.password),
         )
 
         # Retornar el usuario creado
@@ -57,5 +57,5 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas")
 
         # Generar el token
-        token = create_access_token(data=str(user_login))
+        token = create_access_token(data=user_login)
         return token

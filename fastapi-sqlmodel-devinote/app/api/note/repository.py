@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 from app.services.pagination import paginate_query
 from typing import Any, Optional, Sequence
@@ -93,24 +94,24 @@ class NoteRepository:
         self.db.delete(note)
         self.db.commit()
 
-    # # Reemplaza las etiquetas de una nota
-    # def replace_labels(self, owner_id: int, note_id: int, label_ids: list[int]) -> None:
-    #     # Se eliminan las etiquetas de la nota
-    #     self.db.exec(delete(NoteLabelLink).where(
-    #         NoteLabelLink.note_id == note_id))  # type: ignore
+    # Reemplaza las etiquetas de una nota
+    def replace_labels(self, owner_id: int, note_id: int, label_ids: list[int]) -> None:
+        # Se eliminan las etiquetas de la nota
+        self.db.exec(delete(NoteLabelLink).where(
+            NoteLabelLink.note_id == note_id))  # type: ignore
 
-    #     # Se agregan las nuevas etiquetas
-    #     for label in set(label_ids or []):
-    #         self.db.add(NoteLabelLink(note_id=note_id, label_id=label))
+        # Se agregan las nuevas etiquetas
+        for label in set(label_ids or []):
+            self.db.add(NoteLabelLink(note_id=note_id, label_id=label))
 
-    #     # Se commitea la transacción
-    #     self.db.commit()
+        # Se commitea la transacción
+        self.db.commit()
 
-    # # Obtiene una lista de notas por IDs
-    # def list_by_ids(self, ids: list[int]) -> list[Note]:
-    #     # Si no hay IDs, retorna una lista vacía
-    #     if not ids:
-    #         return []
+    # Obtiene una lista de notas por IDs
+    def list_by_ids(self, ids: list[int]) -> list[Note]:
+        # Si no hay IDs, retorna una lista vacía
+        if not ids:
+            return []
 
-    #     # Se retorna la lista de notas
-    #     return self.db.exec(select(Note).where(Note.id.in_(ids))).all()
+        # Se retorna la lista de notas
+        return self.db.exec(select(Note).where(Note.id.in_(ids))).all()

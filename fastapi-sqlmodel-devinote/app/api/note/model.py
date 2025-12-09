@@ -17,6 +17,20 @@ class Note(SQLModel, table=True):
 
 ##### DTOs #####
 
+
+# Modelo de nota para leer
+class NoteRead(SQLModel):
+    id: int
+    title: str
+    content: str
+    color: Optional[str]
+    # Relación con las etiquetas
+    label_ids: Optional[list[int]] = None
+    # Relación con el usuario
+    owner_id: int
+    model_config = {"from_attributes": True}
+
+
 # Modelo de nota para crear
 class NoteCreate(SQLModel):
     title: str

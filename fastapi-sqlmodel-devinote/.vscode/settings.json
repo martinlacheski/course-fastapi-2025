@@ -9,5 +9,13 @@
   "python.analysis.enable": true,
   "python.analysis.diagnosticSeverityOverrides": {
     "reportUndefinedVariable": "warning"
-  }
+  },
+  "cursorpyright.analysis.autoImportCompletions": true,
+  "cursorpyright.analysis.diagnosticSeverityOverrides": {
+    "reportUndefinedVariable": "warning"
+  },
+  "cursorpyright.analysis.extraPaths": [
+    "${workspaceFolder}/.venv/lib/python3.10/site-packages"
+  ],
+  "cursorpyright.analysis.useLibraryCodeForTypes": true
 }

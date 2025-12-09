@@ -1,3 +1,4 @@
+from __future__ import annotations
 
 from app.api.label.model import NoteLabelLink
 from sqlmodel import Session, select, delete
@@ -84,6 +85,18 @@ class LabelRepository:
         self.db.refresh(label)
         return label
 
+    # Actualiza una etiqueta
+    def update(self, owner_id: int, label_id: int, name: str) -> Label:
+        label = self.get(label_id)
+        if not label or label.owner_id != owner_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="La etiqueta no existe o no posee autorización")
+        label.name = name
+        self.db.add(label)
+        self.db.commit()
+        self.db.refresh(label)
+        return label
+
     # Elimina una etiqueta
     def delete(self, label: Label) -> None:
         self.db.exec(delete(NoteLabelLink).where(
@@ -95,37 +108,37 @@ class LabelRepository:
 
     # Obtiene una lista de IDs de etiquetas para un usuario
 
-    # def list_ids_for_owner_subset(self, owner_id: int,
-    #                               ids: list[int]) -> list[int]:  # type: ignore
-    #     # Si no hay IDs, retorna una lista vacía
-    #     if not ids:
-    #         return []
+    def list_ids_for_owner_subset(self, owner_id: int,
+                                  ids: list[int]) -> list[int]:  # type: ignore
+        # Si no hay IDs, retorna una lista vacía
+        if not ids:
+            return []
 
-    #     # Retorna una lista de IDs de etiquetas para un usuario
-    #     return self.db.exec(
-    #         select(Label.id).where(Label.owner_id ==
-    #                                owner_id,
-    #                                Label.id.in_(set(ids)))  # type: ignore
-    #     ).all()
+        # Retorna una lista de IDs de etiquetas para un usuario
+        return self.db.exec(
+            select(Label.id).where(Label.owner_id ==
+                                   owner_id,
+                                   Label.id.in_(set(ids)))  # type: ignore
+        ).all()
 
-    # # Obtiene una lista de IDs de etiquetas para una nota
-    # def list_label_ids_for_note(self,
-    #                             note_id: int) -> list[int]:  # type: ignore
-    #     # Retorna una lista de IDs de etiquetas para una nota
-    #     return self.db.exec(
-    #         select(NoteLabelLink.label_id).where(
-    #             NoteLabelLink.note_id == note_id)  # type: ignore
-    #     ).all()
+    # Obtiene una lista de IDs de etiquetas para una nota
+    def list_label_ids_for_note(self,
+                                note_id: int) -> list[int]:  # type: ignore
+        # Retorna una lista de IDs de etiquetas para una nota
+        return self.db.exec(
+            select(NoteLabelLink.label_id).where(
+                NoteLabelLink.note_id == note_id)  # type: ignore
+        ).all()
 
-    # # Obtiene una lista de IDs de notas para una etiqueta
-    # def list_note_ids_by_label_ids(self,
-    #                                label_ids: list[int]) -> list[int]:  # type: ignore
-    #     # Si no hay IDs, retorna una lista vacía
-    #     if not label_ids:
-    #         return []
+    # Obtiene una lista de IDs de notas para una etiqueta
+    def list_note_ids_by_label_ids(self,
+                                   label_ids: list[int]) -> list[int]:  # type: ignore
+        # Si no hay IDs, retorna una lista vacía
+        if not label_ids:
+            return []
 
-    #     # Retorna una lista de IDs de notas para una etiqueta
-    #     return self.db.exec(
-    #         select(NoteLabelLink.note_id).where(
-    #             NoteLabelLink.label_id.in_(label_ids))  # type: ignore
-    #     ).all()
+        # Retorna una lista de IDs de notas para una etiqueta
+        return self.db.exec(
+            select(NoteLabelLink.note_id).where(
+                NoteLabelLink.label_id.in_(label_ids))  # type: ignore
+        ).all()

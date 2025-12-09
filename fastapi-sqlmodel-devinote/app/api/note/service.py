@@ -22,6 +22,19 @@ class NoteService:
         self.labels = LabelRepository(db)
         self.shares = ShareRepository(db)
 
+    # Helper: arma el Note con los label_ids
+    def _note_to_read(self, note: Note) -> NoteCreate:
+        raw_ids = self.labels.list_label_ids_for_note(note.id)
+
+        # Por si el repositorio devuelve tuplas (ej: [(1,), (2,)])
+        label_ids = [lid[0] if isinstance(
+            lid, tuple) else lid for lid in raw_ids]
+
+        return NoteCreate.model_validate(
+            note,
+            update={"label_ids": label_ids},
+        )
+
     ### Permisos ###
 
     # Permisos de lectura
@@ -78,9 +91,10 @@ class NoteService:
 
     ### CRUD ###
 
-    # Lista de notas visibles
+    # Lista de notas
 
-    def list_visible(self, user_id: int) -> list[Note]:
+        # Lista de notas
+    def list_notes(self, user_id: int) -> list[NoteCreate]:
 
         # Lista de notas propias
         owned = self.notes.list_owned(user_id)
@@ -96,15 +110,38 @@ class NoteService:
         combined_ids = list({*direct_ids, *ids_by_label})
         shared = self.notes.list_by_ids(combined_ids)
 
-        # Lista de notas visibles
+        # Lista combinada sin duplicados
         combined = {note.id: note for note in owned}
-
-        # Se agregan las notas compartidas
         for note in shared:
             combined.setdefault(note.id, note)
 
-        # Se retorna la lista de notas visibles con una lista ordenada y una función anónima
-        return sorted(combined.values(), key=lambda note: note.id, reverse=True)
+        # Lista ordenada
+        all_notes = sorted(
+            combined.values(),
+            key=lambda note: note.id,
+            reverse=True
+        )
+
+        # Devolvemos NoteCreate con label_ids
+        return [self._note_to_read(note) for note in all_notes]
+
+    # Obtener una nota
+
+    def get_note(self, user_id: int, note_id: int) -> Note:
+
+        # Se obtiene la nota
+        note = self.notes.get(note_id)
+
+        # Se verifica que la nota exista y que el usuario tenga autorización
+        if not note:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Nota no encontrada")
+        if not self.user_can_read(user_id, note):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="No se posee autorización")
+
+        # Se retorna la nota
+        return self._note_to_read(note)
 
     # Crear una nota
     def create(self, owner_id: int, payload: NoteCreate) -> Note:
@@ -155,7 +192,7 @@ class NoteService:
             self._set_labels(user_id, note.id, label_ids)
 
         # Se retorna la nota
-        return note
+        return self._note_to_read(note)
 
     # Eliminar una nota
     def delete(self, user_id: int, note_id: int) -> None:
